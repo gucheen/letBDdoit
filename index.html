@@ -64,7 +64,7 @@
                 var e = Math.floor(Math.log(bytes)/Math.log(1024));
                 return (bytes/Math.pow(1024, Math.floor(e))).toFixed(2)+' '+s[e];
             }
-            var accessToken = '23.c287968479af8c8b1dc1f68cd85494ae.2592000.1396436902.2718369881-2091369';
+            var accessToken; //add your access_token here.
             $.ajax({url:'https://openapi.baidu.com/rest/2.0/passport/users/getLoggedInUser?access_token='+ accessToken,dataType:'jsonp'}).done(function(data){
                 $('#info').text(data.uname);
                 $('#user_pic').attr('src','http://tb.himg.baidu.com/sys/portraitn/item/'+data.portrait);
