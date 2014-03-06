@@ -5,6 +5,9 @@
     <meta charset="UTF-8">
     <title>百度帮我下！</title>
     <link rel="stylesheet" href="css/uikit.almost-flat.min.css">
+    <link rel="stylesheet" href="js/addon/notify.almost-flat.min.css">
+    <!-- <link rel="stylesheet" href="http://cdn.staticfile.org/font-awesome/4.0.3/css/font-awesome.min.css"> -->
+    <!-- 由于使用了uikit的notify组件，所以需要font-awesome，我在这里把它注释掉了，因为只关系到一个关闭按钮的图标，需要的可以取消注释 -->
 </head>
 
 <body>
@@ -17,8 +20,9 @@
             <div class="uk-width-2-3 uk-float-right">
                 <p id="info"></p>
                 <p id="auth"></p>
+                <a id="auth_link" href="https://openapi.baidu.com/oauth/2.0/authorize?response_type=token&client_id=OuHPQzAlkVARw7PqcD64B1Av&redirect_uri=http%3A%2F%2Fletbddoit.gucheen.pro%2Findex.html&scope=basic+netdisk&display=popup">获取授权</a>
+                <!-- 这个链接的redirect_uri部分改成自己的应用的授权回调地址 -->
             </div>
-            <a id="auth_link" href="https://openapi.baidu.com/oauth/2.0/authorize?response_type=token&client_id=OuHPQzAlkVARw7PqcD64B1Av&redirect_uri=oob&scope=basic+netdisk&display=dialog">获取授权</a>
             <div class="uk-float-left uk-width-1-1">
                 <p id="space_info"></p>
                 <div class="uk-progress">
@@ -26,12 +30,17 @@
                 </div>
             </div>
         </div>
+        <div class="uk-panel-box uk-width-1-2 uk-float-right">
+            <h3 class="uk-panel-title">使用说明</h3>
+            <p>请戳左边的授权链接登录。</p>
+            <p>没有做后端，所以无法刷新access_token，每个月重新授权一次。</p>
+        </div>
 
         <form class="uk-form uk-float-left uk-width-1-1">
 
             <fieldset data-uk-margin>
                 <legend>添加离线任务</legend>
-                <input id="source_path" type="text" placeholder="">
+                <input id="source_path" type="text" class="uk-width-1-2" placeholder="在此输入任务地址">
                 <button id="add_task" class="uk-button uk-button-success">添加</button>
                 <button id="query_tasks" class="uk-button uk-button-primary">查询所有离线任务</button>
             </fieldset>
@@ -57,6 +66,7 @@
     </div>
     <script src="js/jquery.min.js"></script>
     <script src="js/uikit.min.js"></script>
+    <script src="js/addon/notify.min.js"></script>
     <script>
         $(function(){
             function formatSize(bytes) {
@@ -64,39 +74,49 @@
                 var e = Math.floor(Math.log(bytes)/Math.log(1024));
                 return (bytes/Math.pow(1024, Math.floor(e))).toFixed(2)+' '+s[e];
             }
-            var accessToken; //add your access_token here.
-            $.ajax({url:'https://openapi.baidu.com/rest/2.0/passport/users/getLoggedInUser?access_token='+ accessToken,dataType:'jsonp'}).done(function(data){
-                $('#info').text(data.uname);
-                $('#user_pic').attr('src','http://tb.himg.baidu.com/sys/portraitn/item/'+data.portrait);
-            });
-            $.ajax({url:'https://openapi.baidu.com/rest/2.0/passport/users/isAppUser?access_token='+accessToken,dataType:'jsonp'}).done(function(data){
-                var isAuth;
-                if(data.result == 1){
-                    isAuth = '已授权';
-                    $('#auth_link').hide();
-                }else{isAuth = '未授权';}
-                $('#auth').text(isAuth);
-            });
-            $.ajax({url:'https://pcs.baidu.com/rest/2.0/pcs/quota?method=info&access_token='+accessToken,dataType:'jsonp'}).done(function(data){
-                var space_quota = formatSize(data.quota);
-                var space_used = formatSize(data.used);
-                var use_per = ((data.used/data.quota)*100).toFixed(2);
-                $('#space_chart').css('width',use_per+'%').text(use_per+'%');
-                $('#space_info').text(space_used+'/'+space_quota);
-            })
-            $('#add_task').click(function(e){
-                e.preventDefault();
-                var source_path = $('#source_path').val();
-                $.post('https://pcs.baidu.com/rest/2.0/pcs/services/cloud_dl',{method:'add_task',access_token:accessToken,save_path:'/apps/easydl',source_url:source_path}).done(function(data){
-                    console.log(data.task_id);
+            function getQueryStringRegExp(name){
+                var reg = new RegExp("(^|\\?|&)"+ name +"=([^&]*)(\\s|&|$)", "i");  
+                if (reg.test(location.href)) return unescape(RegExp.$2.replace(/\+/g, " ")); return null;
+            };
+            var accessToken = getQueryStringRegExp('access_token');
+            if(accessToken != null){
+                $.ajax({url:'https://openapi.baidu.com/rest/2.0/passport/users/isAppUser?access_token='+accessToken,dataType:'jsonp'}).done(function(data){
+                    var isAuth;
+                    if(data.result == 1){
+                        isAuth = '已授权';
+                        $('#auth_link').hide();
+                        $.ajax({url:'https://openapi.baidu.com/rest/2.0/passport/users/getLoggedInUser?access_token='+ accessToken,dataType:'jsonp'}).done(function(data){
+                            $('#info').text(data.uname);
+                            $('#user_pic').attr('src','http://tb.himg.baidu.com/sys/portraitn/item/'+data.portrait);
+                        });
+                        $.ajax({url:'https://pcs.baidu.com/rest/2.0/pcs/quota?method=info&access_token='+accessToken,dataType:'jsonp'}).done(function(data){
+                            var space_quota = formatSize(data.quota);
+                            var space_used = formatSize(data.used);
+                            var use_per = ((data.used/data.quota)*100).toFixed(2);
+                            $('#space_chart').css('width',use_per+'%').text(use_per+'%');
+                            $('#space_info').text(space_used+'/'+space_quota);
+                        });
+                    }else{
+                        isAuth = '未授权';
+                    }
+                    $('#auth').text(isAuth);
                 });
-            });
-//            $('#query_tasks').click(function(e){
-//                e.preventDefault();
-//                $.post('https://pcs.baidu.com/rest/2.0/pcs/services/cloud_dl',{method:'list_task',access_toke:accessToken}).done(function(data){
-//                    console.log(data);
-//                });
-//            });
+                $('#add_task').click(function(e){
+                    e.preventDefault();
+                    var source_path = $('#source_path').val();
+                    $.post('https://pcs.baidu.com/rest/2.0/pcs/services/cloud_dl',{method:'add_task',access_token:accessToken,save_path:'/apps/easydl',source_url:source_path}).done(function(data){
+                        $.UIkit.notify('任务'+data.task_id+'已经添加成功！',{status  : 'success',timeout : 3000,pos: 'top-center'});
+                        $('#source_path').val('');
+                    });
+                });
+                // 查询功能由于api的问题，暂时无法使用
+                // $('#query_tasks').click(function(e){
+                //     e.preventDefault();
+                //     $.post('https://pcs.baidu.com/rest/2.0/pcs/services/cloud_dl',{method:'list_task',access_token:accessToken,need_task_info:1}).done(function(data){
+                //         console.log(data);
+                //     });
+                // });
+            } 
         })
     </script>
 </body>
