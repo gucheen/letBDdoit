@@ -5,9 +5,7 @@
     <meta charset="UTF-8">
     <title>百度帮我下！</title>
     <link rel="stylesheet" href="css/uikit.almost-flat.min.css">
-    <link rel="stylesheet" href="js/addon/notify.almost-flat.min.css">
     <link rel="stylesheet" href="http://cdn.staticfile.org/font-awesome/4.0.3/css/font-awesome.min.css">
-    <!-- uikit的消息提醒的关闭按钮使用了font-awesome，出于速度考虑，我注释掉了，需要的话可以启用 -->
 </head>
 
 <body>
@@ -35,19 +33,25 @@
             <p>1. 请戳左边的授权按钮登录。</p>
             <p>2. 没有做后端，所以无法刷新access_token，每个月重新授权一次。</p>
             <p>3. 目前pcs api有些问题，获取离线任务信息的接口正确返回信息，因此无法查询任务信息。</p>
+            <p>4. 首次使用请点击这个按钮
+                <button id="init" class="uk-button uk-button-primary">初始化</button>作用是生成一个目录用来存放下载文件。</p>
         </div>
 
         <form class="uk-form uk-float-left uk-width-1-1">
 
             <fieldset data-uk-margin>
                 <legend>添加离线任务</legend>
+                <div id="added_task" class="uk-alert uk-alert-success" style="display:none" data-uk-alert>
+                    <a href="" class="uk-alert-close uk-close"></a>
+                    <p>任务添加成功</p>
+                </div>
                 <input id="source_path" type="text" class="uk-width-1-2" placeholder="在此输入任务地址">
                 <button id="add_task" class="uk-button uk-button-success">添加</button>
                 <button id="query_tasks" class="uk-button uk-button-primary">查询所有离线任务</button>
             </fieldset>
 
         </form>
-        
+
         <table class="uk-table uk-table-hover uk-float-left">
             <caption>离线任务统计</caption>
             <thead>
@@ -68,7 +72,6 @@
     </div>
     <script src="js/jquery.min.js"></script>
     <script src="js/uikit.min.js"></script>
-    <script src="js/addon/notify.min.js"></script>
     <script>
     $(function() {
         function formatSize(bytes) {
@@ -159,6 +162,8 @@
             });
             $('#add_task').click(function(e) {
                 e.preventDefault();
+                var $this = $(this);
+                $this.html('<i class="uk-icon-spinner uk-icon-spin"></i> 提交中');
                 var source_path = $('#source_path').val();
                 $.post('https://pcs.baidu.com/rest/2.0/pcs/services/cloud_dl', {
                     method: 'add_task',
@@ -166,13 +171,10 @@
                     save_path: '/apps/easydl',
                     source_url: source_path
                 }).done(function(data) {
-                    $.UIkit.notify('任务' + data.task_id + '已经添加成功！', {
-                        status: 'success',
-                        timeout: 3000,
-                        pos: 'top-center'
-                    });
+                    $('#added_task').show();
                     $('#source_path').val('');
                     addTaskInfo(data.task_id);
+                    $this.html('添加');
                 });
             });
             // 查询功能由于api的问题，暂时无法使用
@@ -181,10 +183,21 @@
                 $.post('https://pcs.baidu.com/rest/2.0/pcs/services/cloud_dl', {
                     method: 'list_task',
                     access_token: accessToken,
-                    need_task_info: 1
+                    need_task_info: '1',
+                    start: '1',
+                    limit: '10',
+                    asc: '0'
                 }).done(function(data) {
-                    console.log(data); // 你可以在控制台看到返回的信息，api传来的返回值中，离线任务队列是空的，原因不明。
+                    console.log(data); //你可以的在浏览器的开发者工具的控制台看到返回值，其中的离线任务数列是空的
                 });
+            });
+            $('#init').click(function(e) {
+                e.preventDefault();
+                $.get('https://pcs.baidu.com/rest/2.0/pcs/file', {
+                    method: 'mkdir',
+                    access_token: accessToken,
+                    path: '/apps/easydl'
+                })
             });
         }
     })
