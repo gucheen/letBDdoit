@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+	<!-- version 2014.3.12 -->
     <meta charset="UTF-8">
     <title>百度帮我下！</title>
     <link rel="stylesheet" href="css/uikit.almost-flat.min.css">
@@ -30,11 +31,13 @@
         </div>
         <div class="uk-panel-box uk-width-1-2 uk-float-right">
             <h3 class="uk-panel-title">使用说明</h3>
-            <p>1. 请戳左边的授权按钮登录。</p>
+            <p>1. 首次使用请戳左边的授权按钮登录，然后点击这个按钮 
+                <button id="init" class="uk-button uk-button-primary">初始化</button> 以生成一个目录用来存放下载文件。</p>
             <p>2. 没有做后端，所以无法刷新access_token，每个月重新授权一次。</p>
             <p>3. 目前pcs api有些问题，获取离线任务信息的接口正确返回信息，因此无法查询任务信息。</p>
-            <p>4. 首次使用请点击这个按钮
-                <button id="init" class="uk-button uk-button-primary">初始化</button>作用是生成一个目录用来存放下载文件。</p>
+            <p>4. 已经做了Cookie缓存，需要清理请点击 
+                <button id="clean_cookies" class="uk-button uk-button-primary">清理Cookies</button> Cookies有效期为一个月。
+            </p>
         </div>
 
         <form class="uk-form uk-float-left uk-width-1-1">
@@ -86,6 +89,51 @@
             return null;
         };
 
+        /* Cookies */
+        var docCookies = {
+            getItem: function(sKey) {
+                return decodeURIComponent(document.cookie.replace(new RegExp("(?:(?:^|.*;)\\s*" + encodeURIComponent(sKey).replace(/[\-\.\+\*]/g, "\\$&") + "\\s*\\=\\s*([^;]*).*$)|^.*$"), "$1")) || null;
+            },
+            setItem: function(sKey, sValue, vEnd, sPath, sDomain, bSecure) {
+                if (!sKey || /^(?:expires|max\-age|path|domain|secure)$/i.test(sKey)) {
+                    return false;
+                }
+                var sExpires = "";
+                if (vEnd) {
+                    switch (vEnd.constructor) {
+                        case Number:
+                            sExpires = vEnd === Infinity ? "; expires=Fri, 31 Dec 9999 23:59:59 GMT" : "; max-age=" + vEnd;
+                            break;
+                        case String:
+                            sExpires = "; expires=" + vEnd;
+                            break;
+                        case Date:
+                            sExpires = "; expires=" + vEnd.toUTCString();
+                            break;
+                    }
+                }
+                document.cookie = encodeURIComponent(sKey) + "=" + encodeURIComponent(sValue) + sExpires + (sDomain ? "; domain=" + sDomain : "") + (sPath ? "; path=" + sPath : "") + (bSecure ? "; secure" : "");
+                return true;
+            },
+            removeItem: function(sKey, sPath, sDomain) {
+                if (!sKey || !this.hasItem(sKey)) {
+                    return false;
+                }
+                document.cookie = encodeURIComponent(sKey) + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT" + (sDomain ? "; domain=" + sDomain : "") + (sPath ? "; path=" + sPath : "");
+                return true;
+            },
+            hasItem: function(sKey) {
+                return (new RegExp("(?:^|;\\s*)" + encodeURIComponent(sKey).replace(/[\-\.\+\*]/g, "\\$&") + "\\s*\\=")).test(document.cookie);
+            },
+            keys: /* optional method: you can safely remove it! */ function() {
+                var aKeys = document.cookie.replace(/((?:^|\s*;)[^\=]+)(?=;|$)|^\s*|\s*(?:\=[^;]*)?(?:\1|$)/g, "").split(/\s*(?:\=[^;]*)?;\s*/);
+                for (var nIdx = 0; nIdx < aKeys.length; nIdx++) {
+                    aKeys[nIdx] = decodeURIComponent(aKeys[nIdx]);
+                }
+                return aKeys;
+            }
+        };
+
         function addTaskInfo(task_id) {
             $.post('https://pcs.baidu.com/rest/2.0/pcs/services/cloud_dl', {
                 method: 'query_task',
@@ -129,9 +177,18 @@
             });
         }
         var accessToken = getQueryStringRegExp('access_token');
-        if (accessToken != null) {
+        if (accessToken) {
+            docCookies.setItem('user_access_token', accessToken, 2592000);
+        }
+        var user_access_token = docCookies.getItem('user_access_token');
+        $('#clean_cookies').click(function(e) {
+            e.preventDefault();
+            docCookies.removeItem('user_access_token');
+            window.location.assign('/');
+        });
+        if (user_access_token) {
             $.ajax({
-                url: 'https://openapi.baidu.com/rest/2.0/passport/users/isAppUser?access_token=' + accessToken,
+                url: 'https://openapi.baidu.com/rest/2.0/passport/users/isAppUser?access_token=' + user_access_token,
                 dataType: 'jsonp'
             }).done(function(data) {
                 var isAuth;
@@ -139,14 +196,14 @@
                     isAuth = '已授权';
                     $('#auth_link').hide();
                     $.ajax({
-                        url: 'https://openapi.baidu.com/rest/2.0/passport/users/getLoggedInUser?access_token=' + accessToken,
+                        url: 'https://openapi.baidu.com/rest/2.0/passport/users/getLoggedInUser?access_token=' + user_access_token,
                         dataType: 'jsonp'
                     }).done(function(data) {
                         $('#info').text(data.uname);
                         $('#user_pic').attr('src', 'http://tb.himg.baidu.com/sys/portraitn/item/' + data.portrait);
                     });
                     $.ajax({
-                        url: 'https://pcs.baidu.com/rest/2.0/pcs/quota?method=info&access_token=' + accessToken,
+                        url: 'https://pcs.baidu.com/rest/2.0/pcs/quota?method=info&access_token=' + user_access_token,
                         dataType: 'jsonp'
                     }).done(function(data) {
                         var space_quota = formatSize(data.quota);
@@ -167,7 +224,7 @@
                 var source_path = $('#source_path').val();
                 $.post('https://pcs.baidu.com/rest/2.0/pcs/services/cloud_dl', {
                     method: 'add_task',
-                    access_token: accessToken,
+                    access_token: user_access_token,
                     save_path: '/apps/easydl',
                     source_url: source_path
                 }).done(function(data) {
@@ -182,7 +239,7 @@
                 e.preventDefault();
                 $.post('https://pcs.baidu.com/rest/2.0/pcs/services/cloud_dl', {
                     method: 'list_task',
-                    access_token: accessToken,
+                    access_token: user_access_token,
                     need_task_info: '1',
                     start: '1',
                     limit: '10',
@@ -195,7 +252,7 @@
                 e.preventDefault();
                 $.get('https://pcs.baidu.com/rest/2.0/pcs/file', {
                     method: 'mkdir',
-                    access_token: accessToken,
+                    access_token: user_access_token,
                     path: '/apps/easydl'
                 })
             });
