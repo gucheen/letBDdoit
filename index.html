@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-    <!-- version 2014.3.12 -->
+    <!-- version 2014.3.23 -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, user-scalable=no">
     <title>百度帮我下！</title>
@@ -35,10 +35,7 @@
                     <th>文件大小</th>
                 </tr>
             </thead>
-            <tbody>
-                <tr id="task_list">
-
-                </tr>
+            <tbody id="task_list">
             </tbody>
         </table>
         <div class="uk-panel-box uk-width-small-1-1 uk-width-medium-1-2 uk-float-left">
@@ -64,7 +61,7 @@
             <p>1. 首次使用请戳左边的授权按钮登录，然后点击这个按钮
                 <button id="init" class="uk-button uk-button-primary">初始化</button>以生成一个目录用来存放下载文件。</p>
             <p>2. 没有做后端，所以无法刷新access_token，每个月重新授权一次。</p>
-            <p>3. 目前pcs api有些问题，获取离线任务信息的接口不能正确返回信息，因此无法查询任务信息。</p>
+            <p>3. 查询所有任务的功能已经可以使用，但是只能获取在百度云盘添加的任务，在这里添加的任务只能通过单个查询获取。</p>
             <p>4. 已经做了Cookie缓存，需要清理请点击
                 <button id="clean_cookies" class="uk-button uk-button-primary">清理Cookies</button>Cookies有效期为一个月。
             </p>
@@ -170,7 +167,7 @@
                         info_status = '任务取消';
                         break;
                 }
-                var new_task_info = '<td>' + task_id + '</td><td>' + info_source + '</td><td><a href="http://pan.baidu.com/disk/home#dir/path=%2Fapps%2Feasydl">' + info_path + '</a></td><td>' + info_status + '</td><td>' + info_size + '</td>';
+                var new_task_info = '<tr><td>' + task_id + '</td><td>' + info_source + '</td><td><a href="http://pan.baidu.com/disk/home#dir/path=%2Fapps%2Feasydl">' + info_path + '</a></td><td>' + info_status + '</td><td>' + info_size + '</td></tr>';
                 $('#task_list').append(new_task_info);
             });
         }
@@ -231,18 +228,49 @@
                     $this.html('添加');
                 });
             });
-            // 查询功能由于api的问题，暂时无法使用
+            /* 查询任务已经可以使用 */
             $('#query_tasks').click(function(e) {
                 e.preventDefault();
                 $.post('https://pcs.baidu.com/rest/2.0/pcs/services/cloud_dl', {
                     method: 'list_task',
                     access_token: user_access_token,
-                    need_task_info: '1',
-                    start: '1',
-                    limit: '10',
-                    asc: '0'
+                    need_task_info: '1'
                 }).done(function(data) {
-                    console.log(data); //你可以的在浏览器的开发者工具的控制台看到返回值，其中的离线任务数列是空的
+                    var res = data['task_info'];
+                    for (var i = 0; i < res.length; i++) {
+                        var task_id = res[i]['task_id'];
+                        var info_source = res[i]['source_url'];
+                        var info_path = res[i]['save_path'];
+                        var info_status;
+                        switch (res[i]['status']) {
+                            case '0':
+                                info_status = '下载成功';
+                                break;
+                            case '1':
+                                info_status = '下载进行中';
+                                break;
+                            case '2':
+                                info_status = '系统错误';
+                                break;
+                            case '3':
+                                info_status = '资源不存在';
+                                break;
+                            case '4':
+                                info_status = '下载超时';
+                                break;
+                            case '5':
+                                info_status = '资源存在但下载失败';
+                                break;
+                            case '6':
+                                info_status = '存储空间不足';
+                                break;
+                            case '7':
+                                info_status = '任务取消';
+                                break;
+                        }
+                        var new_task_info = '<tr><td>' + task_id + '</td><td>' + info_source + '</td><td><a href="http://pan.baidu.com/disk/home#dir/path=%2Fapps%2Feasydl">' + info_path + '</a></td><td>' + info_status + '</td><td><button class="uk-button">取消该任务</button></td></tr>';
+                        $('#task_list').append(new_task_info);
+                    }
                 });
             });
             $('#init').click(function(e) {
